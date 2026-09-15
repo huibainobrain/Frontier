@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FrontierLit Agent</title>
+    <style>
+        :root {
+            --bg-main: #131314;
+            --bg-sidebar: #1e1f20;
+            --text-primary: #e3e3e3;
+            --text-secondary: #c4c7c5;
+            --accent: #a8c7fa;
+            --border-color: #333;
+            --hover-bg: #282a2c;
+            --user-msg-bg: #2a2b2e;
+            --success: #81c995;
+            --warn: #fdd663;
+            --danger: #f28b82;
+            --muted: #8a8d91;
+            --card-bg: #1a1b1c;
+            /* Type scale — 5 steps only, so hierarchy stays legible at a
+               glance instead of a dozen near-identical sizes. */
+            --fs-xs: 11px;   /* chips: badge / pill / verdict-pill / cite-badge */
+            --fs-sm: 12px;   /* secondary/meta text, captions, dense panel copy */
+            --fs-base: 14px; /* body copy: messages, claims, inputs, buttons */
+            --fs-lg: 16px;   /* subheadings: section h4/h5, modal title, brand */
+            --fs-xl: 20px;   /* primary heading: synthesis title */
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { display: flex; height: 100vh; background-color: var(--bg-main); color: var(--text-primary); }
+        a { color: var(--accent); }
+
+        /* Sidebar */
+        #sidebar {
+            width: 280px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border-color);
+            display: flex; flex-direction: column; padding: 15px; flex-shrink: 0;
+        }
+        #new-chat-btn {
+            background-color: transparent; border: 1px solid var(--border-color); color: var(--text-primary);
+            padding: 12px; border-radius: 8px; cursor: pointer; font-size: var(--fs-base); margin-bottom: 20px; transition: 0.2s;
+        }
+        #new-chat-btn:hover { background-color: var(--hover-bg); }
+
+        .chat-list { flex: 1; overflow-y: auto; }
+        .chat-item {
+            display: flex; justify-content: space-between; align-items: center; padding: 10px;
+            margin-bottom: 5px; border-radius: 8px; cursor: pointer; font-size: var(--fs-base);
+        }
+        .chat-item:hover, .chat-item.active { background-color: var(--hover-bg); }
+        .chat-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 10px; }
+        .chat-actions { display: none; gap: 8px; }
+        .chat-item:hover .chat-actions { display: flex; }
+        .action-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: var(--fs-sm);}
+        .action-btn:hover { color: var(--accent); }
+        .pinned-icon { color: var(--accent); font-size: var(--fs-xs); margin-right: 5px; }
+
+        #sidebar-footer { border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); line-height: 1.5; }
+
+        /* Main content */
+        #main-content { flex: 1; display: flex; flex-direction: column; position: relative; min-width: 0; }
+
+        #topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 24px; border-bottom: 1px solid var(--border-color);
+        }
+        #topbar .brand { font-size: var(--fs-lg); font-weight: 600; color: var(--text-primary); }
+        #topbar .brand span { color: var(--muted); font-weight: 400; font-size: var(--fs-sm); margin-left: 8px; }
+        #profile-btn {
+            background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary);
+            padding: 8px 14px; border-radius: 20px; cursor: pointer; font-size: var(--fs-sm); transition: 0.2s;
+        }
+        #profile-btn:hover { background-color: var(--hover-bg); color: var(--text-primary); }
+
+        #chat-history { flex: 1; overflow-y: auto; padding: 30px 40px; display: flex; flex-direction: column; gap: 20px; }
+
+        .message { max-width: 80%; padding: 15px 20px; border-radius: 12px; line-height: 1.6; font-size: var(--fs-base); }
+        .message.user { align-self: flex-end; background-color: var(--user-msg-bg); white-space: pre-wrap; }
+        .message.bot.plain { align-self: flex-start; background-color: transparent; border: 1px solid var(--border-color); white-space: pre-wrap; }
+        .message.bot.result-msg { align-self: stretch; max-width: 92%; background: transparent; border: none; padding: 0; }
+        .message.bot.error-msg {
+            align-self: flex-start; border: 1px solid var(--danger); background: rgba(242,139,130,0.08);
+            display: flex; align-items: center; gap: 14px; color: var(--text-primary);
+        }
+        .retry-btn {
+            background: transparent; border: 1px solid var(--danger); color: var(--danger);
+            border-radius: 16px; padding: 6px 14px; cursor: pointer; font-size: var(--fs-sm); flex-shrink: 0;
+        }
+        .retry-btn:hover { background: rgba(242,139,130,0.15); }
+
+        /* Progress card */
+        .progress-card { align-self: flex-start; max-width: 80%; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 20px; background: var(--card-bg); }
+        .progress-title { font-size: var(--fs-base); color: var(--text-secondary); margin-bottom: 10px; }
+        .stage-row { font-size: var(--fs-sm); color: var(--muted); padding: 3px 0; display: flex; gap: 8px; }
+        .stage-row.done { color: var(--text-primary); }
+        .stage-icon { width: 14px; display: inline-block; color: var(--success); }
+        .stage-row:not(.done) .stage-icon { color: var(--muted); }
+        .progress-note { margin-top: 10px; font-size: var(--fs-sm); color: var(--muted); }
+
+        /* Synthesis card */
+        .synth-card { border: 1px solid var(--border-color); border-radius: 14px; padding: 24px 28px; background: var(--card-bg); }
+        .synth-header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+        .synth-header h3 { font-size: var(--fs-xl); font-weight: 600; }
+        .synth-meta { margin: 10px 0 4px; display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--fs-sm); color: var(--muted); align-items: center; }
+        .synth-section { margin-top: 20px; }
+        .synth-section h4 { font-size: var(--fs-lg); color: var(--accent); margin-bottom: 8px; }
+        .synth-section .prose { font-size: var(--fs-base); line-height: 1.7; color: var(--text-primary); margin-bottom: 10px; }
+        .claims { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+        .claim { font-size: var(--fs-base); line-height: 1.65; padding-left: 16px; border-left: 2px solid var(--border-color); }
+        .cite-badge {
+            display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px;
+            font-size: var(--fs-xs); background: var(--hover-bg); color: var(--accent); border-radius: 4px;
+            padding: 0 4px; margin-left: 4px; text-decoration: none; position: relative; top: -1px;
+        }
+        .cite-badge:hover { background: var(--accent); color: #131314; }
+        .evidence-details { margin-top: 6px; }
+        .evidence-details summary { font-size: var(--fs-sm); color: var(--muted); cursor: pointer; }
+        .evidence-details blockquote {
+            margin: 6px 0 0 0; padding: 8px 12px; border-left: 2px solid var(--accent);
+            background: rgba(168,199,250,0.06); font-size: var(--fs-sm); color: var(--text-secondary); font-style: italic;
+        }
+        .refs { margin-top: 22px; border-top: 1px solid var(--border-color); padding-top: 14px; }
+        .refs h5 { font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 8px; }
+        .ref-list { list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--text-secondary); }
+        .ref-list li { padding: 3px 6px; border-radius: 4px; transition: background 0.4s; }
+        .ref-list li.flash { background: var(--hover-bg); }
+
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+        .badge-type { background: var(--hover-bg); color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+        .badge-ok { background: rgba(129,201,149,0.15); color: var(--success); }
+        .badge-warn { background: rgba(253,214,99,0.15); color: var(--warn); }
+        .badge-info { background: rgba(168,199,250,0.15); color: var(--accent); }
+        .badge-muted { background: var(--hover-bg); color: var(--muted); }
+
+        details.critic-card, details.telemetry-card {
+            margin-top: 18px; border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 16px; background: rgba(255,255,255,0.02);
+        }
+        details.critic-card summary, details.telemetry-card summary { cursor: pointer; font-size: var(--fs-sm); color: var(--text-secondary); }
+        .revision-notes { margin-top: 10px; font-size: var(--fs-sm); color: var(--text-secondary); font-style: italic; }
+        .verdict-row { margin-top: 10px; font-size: var(--fs-sm); padding-top: 10px; border-top: 1px solid var(--border-color); }
+        .verdict-row:first-of-type { border-top: none; margin-top: 8px; padding-top: 0; }
+        .verdict-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: var(--fs-xs); font-weight: 600; margin-right: 8px; }
+        .v-supported { background: rgba(129,201,149,0.15); color: var(--success); }
+        .v-partial { background: rgba(253,214,99,0.15); color: var(--warn); }
+        .v-unsupported, .v-contradicted { background: rgba(242,139,130,0.15); color: var(--danger); }
+        .v-unavailable { background: var(--hover-bg); color: var(--muted); }
+        .verdict-reason { margin-top: 4px; font-size: var(--fs-sm); color: var(--muted); }
+        .muted { color: var(--muted); font-size: var(--fs-sm); margin-top: 8px; }
+
+        .telemetry-badges { margin-bottom: 10px; }
+        .telemetry-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px 16px; font-size: var(--fs-sm); color: var(--muted); }
+        .telemetry-grid div { display: flex; flex-direction: column; gap: 2px; }
+        .telemetry-grid b { font-size: var(--fs-base); color: var(--text-primary); font-weight: 600; }
+        .telemetry-sources, .telemetry-stop { margin-top: 10px; font-size: var(--fs-sm); color: var(--muted); }
+        .pill { display: inline-block; background: var(--hover-bg); color: var(--text-secondary); padding: 2px 8px; border-radius: 10px; font-size: var(--fs-xs); margin-right: 4px; }
+
+        /* Input area */
+        #input-area { padding: 16px 40px 22px; }
+        .mode-row { max-width: 800px; margin: 0 auto 10px; display: flex; align-items: center; gap: 10px; }
+        .switch { position: relative; display: inline-block; width: 38px; height: 20px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background-color: var(--border-color); transition: 0.2s; border-radius: 20px; }
+        .slider::before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: var(--text-secondary); transition: 0.2s; border-radius: 50%; }
+        .switch input:checked + .slider { background-color: var(--accent); }
+        .switch input:checked + .slider::before { transform: translateX(18px); background-color: #131314; }
+        #mode-caption { font-size: var(--fs-sm); color: var(--muted); }
+
+        .input-container {
+            width: 100%; max-width: 800px; margin: 0 auto; display: flex; background-color: var(--bg-sidebar);
+            border-radius: 20px; padding: 6px 8px 6px 20px; align-items: flex-end; border: 1px solid var(--border-color);
+        }
+        #user-input {
+            flex: 1; background: transparent; border: none; color: var(--text-primary);
+            padding: 10px 0; font-size: var(--fs-base); outline: none; resize: none; max-height: 160px; line-height: 1.5;
+            font-family: inherit;
+        }
+        #send-btn {
+            background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 10px;
+            display: flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0;
+        }
+        #send-btn:hover:not(:disabled) { color: var(--accent); background: var(--hover-bg); }
+        #send-btn:disabled { opacity: 0.4; cursor: default; }
+        #send-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+        /* Profile modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            align-items: center; justify-content: center; z-index: 50;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal { width: 420px; max-width: 90vw; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 14px; padding: 24px; }
+        .modal h3 { font-size: var(--fs-lg); margin-bottom: 6px; }
+        .modal-sub { font-size: var(--fs-sm); color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+        .modal label { display: block; font-size: var(--fs-sm); color: var(--text-secondary); margin: 14px 0 6px; }
+        .modal input {
+            width: 100%; background: var(--bg-main); border: 1px solid var(--border-color); border-radius: 8px;
+            padding: 10px 12px; color: var(--text-primary); font-size: var(--fs-base); outline: none;
+        }
+        .modal input:focus { border-color: var(--accent); }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+        .modal-actions button { padding: 9px 18px; border-radius: 18px; font-size: var(--fs-sm); cursor: pointer; border: 1px solid var(--border-color); background: transparent; color: var(--text-primary); }
+        .modal-actions button.primary { background: var(--accent); color: #131314; border-color: var(--accent); font-weight: 600; }
+        .modal-actions button:hover { opacity: 0.85; }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+        <button id="new-chat-btn" onclick="createNewChat()">+ New Chat</button>
+        <div id="chat-list" class="chat-list"></div>
+        <div id="sidebar-footer">FrontierLit Agent · Planning / Tool Use / Replan / Critic 全链路演示</div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div id="main-content">
+        <div id="topbar">
+            <div class="brand">FrontierLit Agent<span>Multi-Agent Research Synthesis</span></div>
+            <button id="profile-btn" onclick="openProfileModal()">⚙ 个性化设置</button>
+        </div>
+
+        <div id="chat-history"></div>
+
+        <div id="input-area">
+            <div class="mode-row">
+                <label class="switch">
+                    <input type="checkbox" id="agent-mode-toggle" checked onchange="updateModeCaption()">
+                    <span class="slider"></span>
+                </label>
+                <span id="mode-caption"></span>
+            </div>
+            <div class="input-container">
+                <textarea id="user-input" rows="1" placeholder="向 Agent 提问，例如：Compare OpenAI and Anthropic's approaches to agent memory" onkeydown="handleKeyDown(event)" oninput="autoGrow(this)"></textarea>
+                <button id="send-btn" onclick="sendMessage()">
+                    <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal-overlay" class="modal-overlay" onclick="closeProfileModalIfBackdrop(event)">
+        <div class="modal">
+            <h3>个性化设置</h3>
+            <p class="modal-sub">这些字段会作为 UserProfile 传给 Planner / Synthesizer，影响检索计划与最终综合内容的角度 —— 这是该 Agent 系统个性化能力的直接体现，绑定在当前对话上，随时可改。</p>
+            <label>兴趣领域（用逗号分隔）</label>
+            <input id="profile-interests" type="text" placeholder="large language models, RLHF, AI safety">
+            <label>目标角色 role_target</label>
+            <input id="profile-role" type="text" list="role-options" placeholder="researcher">
+            <datalist id="role-options">
+                <option value="researcher">
+                <option value="product manager">
+                <option value="engineer">
+                <option value="student">
+            </datalist>
+            <label>资历 seniority</label>
+            <input id="profile-seniority" type="text" list="seniority-options" placeholder="PhD student">
+            <datalist id="seniority-options">
+                <option value="PhD student">
+                <option value="junior">
+                <option value="senior">
+                <option value="executive">
+            </datalist>
+            <div class="modal-actions">
+                <button onclick="closeProfileModal()">取消</button>
+                <button class="primary" onclick="saveProfile()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentChatId = null;
+        let msgSeq = 0;
+        let pollHandle = null;
+
+        const STAGE_ORDER = ['intent', 'planner', 'analyst', 'evaluator', 'synthesizer', 'critic'];
+        const VERDICT_META = {
+            supported: {label: '支持', cls: 'v-supported'},
+            partial: {label: '部分支持', cls: 'v-partial'},
+            unsupported: {label: '无支撑', cls: 'v-unsupported'},
+            contradicted: {label: '矛盾', cls: 'v-contradicted'},
+            verification_unavailable: {label: '未能校验', cls: 'v-unavailable'},
+        };
+
+        window.onload = async () => {
+            await loadChats();
+            updateModeCaption();
+        };
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str === null || str === undefined ? '' : String(str);
+            return div.innerHTML;
+        }
+        function safeUrl(url) {
+            return typeof url === 'string' && /^https?:\/\//i.test(url) ? url : null;
+        }
+
+        function updateModeCaption() {
+            const on = document.getElementById('agent-mode-toggle').checked;
+            document.getElementById('mode-caption').textContent = on
+                ? 'Agent 模式：Evaluator 会判断证据是否充分，不足时自动触发一轮 Replan'
+                : 'Workflow 模式：固定流程 Plan → Search → Analyze → Synthesize，不调用 Evaluator / Replan（Eval Ablation baseline）';
+        }
+
+        function autoGrow(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+        }
+
+        function handleKeyDown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // ---------------- Sidebar / chat list ----------------
+
+        async function loadChats() {
+            const res = await fetch('/api/chats');
+            const chats = await res.json();
+            const chatListDiv = document.getElementById('chat-list');
+            chatListDiv.innerHTML = '';
+
+            chats.forEach(chat => {
+                const chatDiv = document.createElement('div');
+                chatDiv.className = `chat-item ${chat.id === currentChatId ? 'active' : ''}`;
+                chatDiv.onclick = () => selectChat(chat.id);
+
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'chat-title';
+                titleSpan.innerHTML = (chat.is_pinned ? `<span class="pinned-icon">★</span>` : '') + escapeHtml(chat.title);
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'chat-actions';
+
+                const pinBtn = document.createElement('button');
+                pinBtn.className = 'action-btn';
+                pinBtn.textContent = chat.is_pinned ? 'Unpin' : 'Pin';
+                pinBtn.onclick = (e) => { e.stopPropagation(); togglePin(chat.id); };
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'action-btn';
+                delBtn.textContent = 'Del';
+                delBtn.onclick = (e) => { e.stopPropagation(); deleteChat(chat.id); };
+
+                actionsDiv.appendChild(pinBtn);
+                actionsDiv.appendChild(delBtn);
+                chatDiv.appendChild(titleSpan);
+                chatDiv.appendChild(actionsDiv);
+                chatListDiv.appendChild(chatDiv);
+            });
+        }
+
+        async function selectChat(chatId) {
+            currentChatId = chatId;
+            document.getElementById('chat-history').innerHTML = '';
+            await loadChats();
+
+            const res = await fetch(`/api/chats/${chatId}`);
+            const messages = await res.json();
+            messages.forEach(msg => {
+                if (msg.role === 'user') {
+                    appendUserMessage(msg.content);
+                } else if (msg.is_error) {
+                    appendErrorMessage(msg.content, null);
+                } else if (msg.result) {
+                    appendBotResult(msg.result, msg.run_summary || {});
+                } else {
+                    appendPlainBotMessage(msg.content);
+                }
+            });
+        }
+
+        async function createNewChat() {
+            const res = await fetch('/api/chats', { method: 'POST' });
+            const newChat = await res.json();
+            currentChatId = newChat.id;
+            document.getElementById('chat-history').innerHTML = '';
+            await loadChats();
+        }
+
+        async function deleteChat(chatId) {
+            if (confirm('Are you sure you want to delete this chat?')) {
+                await fetch(`/api/chats/${chatId}`, { method: 'DELETE' });
+                if (currentChatId === chatId) {
+                    currentChatId = null;
+                    document.getElementById('chat-history').innerHTML = '';
+                }
+                await loadChats();
+            }
+        }
+
+        async function togglePin(chatId) {
+            await fetch(`/api/chats/${chatId}/pin`, { method: 'PUT' });
+            await loadChats();
+        }
+
+        // ---------------- Profile modal ----------------
+
+        async function openProfileModal() {
+            if (!currentChatId) {
+                await createNewChat();
+            }
+            const res = await fetch(`/api/chats/${currentChatId}/profile`);
+            const profile = await res.json();
+            document.getElementById('profile-interests').value = (profile.interests || []).join(', ');
+            document.getElementById('profile-role').value = profile.role_target || '';
+            document.getElementById('profile-seniority').value = profile.seniority || '';
+            document.getElementById('profile-modal-overlay').classList.add('open');
+        }
+        function closeProfileModal() {
+            document.getElementById('profile-modal-overlay').classList.remove('open');
+        }
+        function closeProfileModalIfBackdrop(e) {
+            if (e.target.id === 'profile-modal-overlay') closeProfileModal();
+        }
+        async function saveProfile() {
+            const interests = document.getElementById('profile-interests').value
+                .split(',').map(s => s.trim()).filter(Boolean);
+            const role_target = document.getElementById('profile-role').value.trim();
+            const seniority = document.getElementById('profile-seniority').value.trim();
+            await fetch(`/api/chats/${currentChatId}/profile`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ interests, role_target, seniority })
+            });
+            closeProfileModal();
+        }
+
+        // ---------------- Sending messages ----------------
+
+        function setInputDisabled(disabled) {
+            document.getElementById('user-input').disabled = disabled;
+            document.getElementById('send-btn').disabled = disabled;
+            document.getElementById('agent-mode-toggle').disabled = disabled;
+        }
+
+        async function sendMessage() {
+            const inputEl = document.getElementById('user-input');
+            const text = inputEl.value.trim();
+            if (!text) return;
+
+            if (!currentChatId) {
+                await createNewChat();
+            }
+
+            appendUserMessage(text);
+            inputEl.value = '';
+            autoGrow(inputEl);
+            setInputDisabled(true);
+
+            const agentMode = document.getElementById('agent-mode-toggle').checked;
+            const chatIdForThisRun = currentChatId;
+            const progressEl = showProgressCard();
+            pollHandle = setInterval(() => pollProgress(chatIdForThisRun, progressEl), 1200);
+
+            try {
+                const res = await fetch(`/api/chats/${chatIdForThisRun}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: text, agent_mode: agentMode })
+                });
+                const data = await res.json();
+                clearInterval(pollHandle);
+                progressEl.remove();
+
+                if (data.is_error) {
+                    appendErrorMessage(data.content, text);
+                } else {
+                    appendBotResult(data.result, data.run_summary || {});
+                }
+                await loadChats();
+            } catch (err) {
+                clearInterval(pollHandle);
+                progressEl.remove();
+                appendErrorMessage('网络错误：无法连接到 Agent 后端。', text);
+            } finally {
+                setInputDisabled(false);
+                inputEl.focus();
+            }
+        }
+
+        function showProgressCard() {
+            const chatHistory = document.getElementById('chat-history');
+            const el = document.createElement('div');
+            el.className = 'progress-card';
+            el.innerHTML = '<div class="progress-title">Agent 正在执行…</div>';
+            chatHistory.appendChild(el);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            return el;
+        }
+
+        async function pollProgress(chatId, el) {
+            if (!document.body.contains(el)) return;
+            try {
+                const res = await fetch(`/api/chats/${chatId}/progress`);
+                const data = await res.json();
+                renderProgress(el, data);
+            } catch (err) { /* keep last known state on transient failure */ }
+        }
+
+        function renderProgress(el, data) {
+            const stages = data.stages || {};
+            const rows = STAGE_ORDER.map(key => {
+                const s = stages[key];
+                const done = s && s.touched;
+                const calls = s && s.calls ? ` (${s.calls} 次调用)` : '';
+                const label = s ? s.label : key;
+                return `<div class="stage-row ${done ? 'done' : ''}"><span class="stage-icon">${done ? '✓' : '·'}</span>${escapeHtml(label)}${calls}</div>`;
+            }).join('');
+            const elapsed = data.elapsed_s != null ? `${data.elapsed_s.toFixed(0)}s` : '';
+            el.innerHTML = `
+                <div class="progress-title">Agent 正在执行…${elapsed ? ` (${elapsed})` : ''}</div>
+                ${rows}
+                <div class="progress-note">${data.llm_call_count || 0} 次真实 LLM 调用（来自实时 telemetry，而非模拟进度条）</div>`;
+        }
+
+        // ---------------- Message rendering ----------------
+
+        function appendUserMessage(text) {
+            const chatHistory = document.getElementById('chat-history');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message user';
+            msgDiv.textContent = text;
+            chatHistory.appendChild(msgDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function appendPlainBotMessage(text) {
+            const chatHistory = document.getElementById('chat-history');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message bot plain';
+            msgDiv.textContent = text;
+            chatHistory.appendChild(msgDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function appendErrorMessage(text, retryText) {
+            const chatHistory = document.getElementById('chat-history');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message bot error-msg';
+            const p = document.createElement('div');
+            p.style.flex = '1';
+            p.textContent = '⚠ ' + text;
+            msgDiv.appendChild(p);
+            if (retryText) {
+                const btn = document.createElement('button');
+                btn.className = 'retry-btn';
+                btn.textContent = '重试';
+                btn.onclick = () => {
+                    document.getElementById('user-input').value = retryText;
+                    sendMessage();
+                };
+                msgDiv.appendChild(btn);
+            }
+            chatHistory.appendChild(msgDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function appendBotResult(result, runSummary) {
+            const chatHistory = document.getElementById('chat-history');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message bot result-msg';
+            msgSeq += 1;
+            msgDiv.innerHTML = renderResult(result, runSummary || {}, msgSeq);
+            chatHistory.appendChild(msgDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function flashRef(e) {
+            const href = e.currentTarget.getAttribute('href');
+            const targetId = href.slice(1);
+            setTimeout(() => {
+                const el = document.getElementById(targetId);
+                if (el) {
+                    el.classList.add('flash');
+                    setTimeout(() => el.classList.remove('flash'), 900);
+                }
+            }, 50);
+        }
+        window.flashRef = flashRef;
+
+        function buildCitationIndex(result) {
+            const order = (result.draft && result.draft.posts_covered) || [];
+            const index = {};
+            order.forEach((pid, i) => { index[pid] = i + 1; });
+            return index;
+        }
+
+        function renderClaim(claim, citeIndex, msgSeqVal) {
+            const ids = claim.supporting_post_ids || [];
+            const badges = ids.map(pid => {
+                if (!(pid in citeIndex)) citeIndex[pid] = Object.keys(citeIndex).length + 1;
+                return `<a class="cite-badge" href="#ref-${msgSeqVal}-${citeIndex[pid]}" onclick="flashRef(event)">${citeIndex[pid]}</a>`;
+            }).join('');
+            const quotes = claim.supporting_quotes || [];
+            let quoteHtml = '';
+            if (quotes.length) {
+                quoteHtml = `<details class="evidence-details"><summary>查看原文证据（${quotes.length}）</summary>${
+                    quotes.map(q => `<blockquote>${escapeHtml(q)}</blockquote>`).join('')
+                }</details>`;
+            }
+            return `<li class="claim">${escapeHtml(claim.text)}${badges}${quoteHtml}</li>`;
+        }
+
+        function renderResult(result, runSummary, msgSeqVal) {
+            const draft = result.draft || {};
+            const report = result.critic_report || {};
+            const citations = result.citations || {};
+            const citeIndex = buildCitationIndex(result);
+
+            const sectionsHtml = (draft.sections || []).map(sec => {
+                const claimsHtml = (sec.claims || []).map(c => renderClaim(c, citeIndex, msgSeqVal)).join('');
+                return `<div class="synth-section">
+                    ${sec.heading ? `<h4>${escapeHtml(sec.heading)}</h4>` : ''}
+                    ${sec.prose ? `<p class="prose">${escapeHtml(sec.prose)}</p>` : ''}
+                    ${claimsHtml ? `<ul class="claims">${claimsHtml}</ul>` : ''}
+                </div>`;
+            }).join('');
+
+            const refsHtml = Object.entries(citeIndex)
+                .sort((a, b) => a[1] - b[1])
+                .map(([pid, idx]) => {
+                    const meta = citations[pid] || {};
+                    const label = [meta.title, meta.organization || meta.source].filter(Boolean).join(' — ') || pid;
+                    const dateStr = meta.published_at ? ` (${String(meta.published_at).slice(0, 10)})` : '';
+                    const url = safeUrl(meta.url);
+                    const inner = url
+                        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(label)}</a>`
+                        : escapeHtml(label);
+                    return `<li id="ref-${msgSeqVal}-${idx}">[${idx}] ${inner}${dateStr}</li>`;
+                }).join('');
+
+            const flagged = (report.verdicts || []).filter(v => v.verdict !== 'supported');
+            const flaggedHtml = flagged.map(v => {
+                const meta = VERDICT_META[v.verdict] || { label: v.verdict, cls: '' };
+                return `<div class="verdict-row">
+                    <span class="verdict-pill ${meta.cls}">${escapeHtml(meta.label)}</span>
+                    <span>${escapeHtml((v.claim && v.claim.text) || '')}</span>
+                    ${v.reasoning ? `<div class="verdict-reason">${escapeHtml(v.reasoning)}</div>` : ''}
+                </div>`;
+            }).join('');
+
+            const finalBadge = result.final
+                ? `<span class="badge badge-ok">✓ 已通过 Critic 校验</span>`
+                : `<span class="badge badge-warn">⚠ 未完全通过校验</span>`;
+
+            const sources = (runSummary.used_sources || []).map(s => `<span class="pill">${escapeHtml(s)}</span>`).join(' ');
+            const agentBadge = runSummary.agentic_replan_enabled
+                ? `<span class="badge badge-info">Agent 模式（动态 Replan）</span>`
+                : `<span class="badge badge-muted">Workflow 模式（固定流程）</span>`;
+            const latencyS = runSummary.latency_ms != null ? (runSummary.latency_ms / 1000).toFixed(1) : '?';
+
+            return `
+                <div class="synth-card">
+                    <div class="synth-header">
+                        <span class="badge badge-type">${escapeHtml(draft.synthesis_type || '')}</span>
+                        <h3>${escapeHtml(draft.title || 'Untitled Synthesis')}</h3>
+                    </div>
+                    <div class="synth-meta">
+                        ${finalBadge}
+                        <span>修订 ${result.revision_count || 0} 次</span>
+                        <span>覆盖 ${(draft.posts_covered || []).length} 篇文献</span>
+                    </div>
+                    ${sectionsHtml}
+                    ${refsHtml ? `<div class="refs"><h5>参考来源</h5><ol class="ref-list">${refsHtml}</ol></div>` : ''}
+
+                    <details class="critic-card">
+                        <summary>Critic 校验报告 — ${report.num_unsupported || 0} 处无支撑声明${report.revision_needed ? '（曾触发修订）' : ''}</summary>
+                        ${report.revision_notes ? `<p class="revision-notes">${escapeHtml(report.revision_notes)}</p>` : ''}
+                        ${flaggedHtml || '<p class="muted">所有声明均通过证据校验。</p>'}
+                    </details>
+
+                    <details class="telemetry-card">
+                        <summary>运行详情 / Telemetry（真实 token &amp; 调用数据）</summary>
+                        <div class="telemetry-badges">${agentBadge}</div>
+                        <div class="telemetry-grid">
+                            <div>研究轮次<b>${runSummary.research_rounds ?? '?'}</b></div>
+                            <div>触发 Replan<b>${runSummary.replan_triggered ? '是' : '否'}</b></div>
+                            <div>分析文献数<b>${runSummary.analyzed_posts ?? '?'}</b></div>
+                            <div>LLM 调用次数<b>${runSummary.llm_call_count ?? '?'}</b></div>
+                            <div>Token 消耗<b>${runSummary.total_tokens ?? '?'}</b></div>
+                            <div>耗时<b>${latencyS}s</b></div>
+                        </div>
+                        <div class="telemetry-sources">信息源：${sources || '—'}</div>
+                        <div class="telemetry-stop">停止原因：${escapeHtml(String(runSummary.stop_reason || ''))}</div>
+                    </details>
+                </div>`;
+        }
+    </script>
+</body>
+</html>

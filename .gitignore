@@ -1,0 +1,61 @@
+# --- Python ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+build/
+dist/
+pip-wheel-metadata/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Virtual envs ---------------------------------------------------------
+.venv/
+venv/
+env/ 
+.python-version
+
+# --- Secrets / env --------------------------------------------------------
+.env
+.env.local
+.env.*.local
+
+# --- Local data stores ----------------------------------------------------
+# SQLite + ChromaDB live under data/; keep the dir but not the contents.
+data/*
+!data/.gitkeep
+*.sqlite
+*.sqlite-journal
+*.db
+
+# Token usage log
+token_log.jsonl
+
+# --- Notebooks ------------------------------------------------------------
+.ipynb_checkpoints/
+# Dev scratch notebook contents don't need to be tracked.
+notebooks/dev_scratch.ipynb
+
+# --- Editors / OS ---------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Colab / drive --------------------------------------------------------
+sample_data/
+
+# --- Local-only material not meant for the public/portfolio repo ----------
+# Original-course planning docs, meeting notes with real teammates' names,
+# etc. — kept locally for the user's own reference, never published.
+_archive_not_for_portfolio/
+
+# Local dev-tool session cache (per-machine paths, no value to other clones).
+.impeccable/

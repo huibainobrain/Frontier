@@ -1,0 +1,4 @@
+{"id":"critic_supported_001","claim":"Anthropic released Claude 3.5 Sonnet.","quote":"Anthropic announced Claude 3.5 Sonnet.","expected":"supported"}
+{"id":"critic_partial_001","claim":"DeepMind is leading embodied intelligence research.","quote":"DeepMind released a new robotics benchmark.","expected":"partial"}
+{"id":"critic_unsupported_001","claim":"OpenAI open-sourced the model.","quote":"OpenAI announced API access to the model.","expected":"unsupported"}
+{"id":"critic_contradicted_001","claim":"The model is open source.","quote":"The model weights are not publicly released.","expected":"contradicted"}

@@ -1,0 +1,70 @@
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent_system"
+version = "0.0.1"
+description = "Agentic AI system for monitoring and synthesizing frontier AI lab publications."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [
+    { name = "Your Name" },
+]
+
+# Runtime dependencies. Versions are kept loose on purpose: pin later, once the
+# agents are built and we know what we actually need.
+dependencies = [
+    # Google ADK + Gemini
+    "google-adk>=0.2",
+    "google-genai>=0.3",
+    # Vector store
+    "chromadb>=0.5",
+    # Observability
+    "langfuse>=2.0",
+    # Config
+    "python-dotenv>=1.0",
+    # HTTP / parsing (Scout will need these)
+    "httpx>=0.27",
+    "feedparser>=6.0",
+    "beautifulsoup4>=4.12",
+    # MCP (Scout will expose an MCP server)
+    "mcp>=1.0",
+    # Web UI (app.py) — previously undeclared; installed only by luck as
+    # transitive deps of google-adk/mcp. Pinned here so `pip install -e .`
+    # alone is enough to run `uvicorn app:app`.
+    "fastapi>=0.100",
+    "uvicorn>=0.30",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "ipykernel>=6.29",
+    "jupyter>=1.0",
+    "nbformat>=5.10",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+agent_system = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # handled by formatter

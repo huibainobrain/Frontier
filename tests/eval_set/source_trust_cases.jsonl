@@ -1,0 +1,3 @@
+{"id":"trust_official_001","source":"Anthropic","url":"https://www.anthropic.com/news/example","published_at":"2026-05-01","content_type":"blog","expected_min_score":5}
+{"id":"trust_arxiv_001","source":"arXiv","url":"https://arxiv.org/abs/1234.5678","published_at":"2026-05-01","content_type":"paper","expected_min_score":4}
+{"id":"trust_unknown_001","source":"Unknown newsletter","url":"","published_at":"","content_type":"blog","expected_max_score":2}

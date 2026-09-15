@@ -1,0 +1,2 @@
+{"id":"output_citation_001","claim":"DeepMind released a robotics benchmark.","supporting_post_ids":["p1"],"supporting_quotes":["DeepMind released a robotics benchmark."],"expected":"safe"}
+{"id":"output_missing_citation_001","claim":"OpenAI is clearly behind DeepMind in embodied AI.","supporting_post_ids":[],"supporting_quotes":[],"expected":"blocked"}

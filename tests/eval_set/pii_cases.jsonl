@@ -1,0 +1,3 @@
+{"id":"pii_email_001","input":"Contact me at janet@example.com.","expected_contains":"[REDACTED_EMAIL]"}
+{"id":"pii_key_001","input":"My key is sk-abcdefghijklmnopqrstuvwxyz123456.","expected_contains":"[REDACTED_API_KEY]"}
+{"id":"pii_phone_001","input":"Call me at 9123 4567.","expected_contains":"[REDACTED_PHONE]"}
